@@ -13,6 +13,6 @@ test("greets the user", () => {
 });
 
 test("redirects if user is falsy", () => {
-  render(<UserProfile />);
-  expect(screen.queryByText(/hi/i)).not.toBeInTheDocument();
+  const { history } = render(<UserProfile />);
+  expect(history.location.pathname).toBe("/signin");
 });
