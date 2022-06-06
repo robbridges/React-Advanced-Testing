@@ -1,5 +1,5 @@
 import { App } from "../../../App";
-import { render, screen } from "../../../test-utils";
+import { fireEvent, render, screen } from "../../../test-utils";
 
 const testUser = {
   email: "testing@test.com",
@@ -15,4 +15,21 @@ test("Authenticated user should be able to see a show", async () => {
     name: /Avalanche of Cheese/i,
   });
   expect(heading).toBeInTheDocument();
+});
+
+test("'purchase' button pushes the correct URL", async () => {
+  const { history } = render(<App />, {
+    preloadedState: { user: { userDetails: testUser } },
+    routeHistory: ["/tickets/0"],
+  });
+
+  const purchaseButton = await screen.findByRole("button", {
+    name: /purchase/i,
+  });
+
+  fireEvent.click(purchaseButton);
+
+  expect(history.location.pathname).toBe("/confirm/0");
+  const searchRegex = expect.stringMatching(/holdId=\d+&seatCount=2/i);
+  expect(history.location.search).toEqual(searchRegex);
 });
