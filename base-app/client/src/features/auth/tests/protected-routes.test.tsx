@@ -1,7 +1,10 @@
 import userEvent from "@testing-library/user-event";
-
+import { rest, RestRequest, DefaultRequestBody, RequestParams, ResponseComposition, RestContext } from "msw";
+import { baseUrl, endpoints } from "../../../app/axios/constants";
 import { App } from "../../../App";
+import { handlers } from "../../../mocks/handlers";
 import { getByRole, render, screen, waitFor } from "../../../test-utils";
+import { server } from "../../../mocks/server";
 
 test.each([
   { routePath: "/profile" },
@@ -16,19 +19,156 @@ test.each([
   }
 );
 
-test("successful sign-in flow", async () => {
-  const { history } = render(<App />, { routeHistory: ["/tickets/1"] });
-  const emailField = screen.getByLabelText(/email/i);
+test.each([
+  { testName: "sign in", buttonName: /sign in/i },
+  { testName: "sign up", buttonName: /sign up/i },
+])("successful $testName flow", async ({ buttonName }) => {
+  
+  const { history } = render(<App />, { routeHistory: ["/tickets/0"] });
+
+  
+  const emailField = screen.getByLabelText(/email address/i);
   userEvent.type(emailField, "test@test.com");
 
   const passwordField = screen.getByLabelText(/password/i);
-  userEvent.type(passwordField, "yoooo");
+  userEvent.type(passwordField, "test");
 
-  const signInForm = screen.getByTestId("sign-in-form");
-  const signInButton = getByRole(signInForm, "button", { name: /sign in/i });
+  const form = screen.getByTestId("sign-in-form");
+  const signInButton = getByRole(form, "button", { name: buttonName });
   userEvent.click(signInButton);
+
   await waitFor(() => {
-    // expect(history.location.pathname).toBe("/tickets/1");
-    expect(history.entries).toHaveLength(1);
+    // Test for redirect back to initial protected page
+    expect(history.location.pathname).toBe("/tickets/0");
+
+    // with sign-in page removed from history
+    expect(history.length).toBe(1);
   });
 });
+
+const signInFailure = (
+  req: RestRequest<DefaultRequestBody, 
+  RequestParams>, 
+  res: ResponseComposition, 
+  ctx: RestContext
+) => {
+  return res(ctx.status(401));
+}
+const serverError = (
+  req: RestRequest<DefaultRequestBody, 
+  RequestParams>, 
+  res: ResponseComposition, 
+  ctx: RestContext
+) => { 
+  return res(ctx.status(500));
+}
+
+const signUpFailure = (
+  req: RestRequest<DefaultRequestBody, 
+  RequestParams>, 
+  res: ResponseComposition, 
+  ctx: RestContext
+) => { 
+  return res(ctx.status(500))
+}
+const signUpServerError = (
+  req: RestRequest<DefaultRequestBody, RequestParams>, 
+  res: ResponseComposition, 
+  ctx: RestContext
+) => { 
+  return res(ctx.status(400))
+}
+
+test("unsuccessful signin followed by successful signin", async () => {
+  const errorHandler = rest.post(
+    `${baseUrl}/${endpoints.signIn}`,
+    signInFailure
+  );
+  server.resetHandlers(...handlers, errorHandler);
+  const { history } = render(<App />, { routeHistory: ["/tickets/0"] });
+
+  
+  const emailField = screen.getByLabelText(/email address/i);
+  userEvent.type(emailField, "test@test.com");
+
+  const passwordField = screen.getByLabelText(/password/i);
+  userEvent.type(passwordField, "test");
+
+  const form = screen.getByTestId("sign-in-form");
+  const signInButton = getByRole(form, "button", { name: /sign in/i });
+  userEvent.click(signInButton);
+  server.restoreHandlers();
+
+  userEvent.click(signInButton)
+
+  await waitFor(() => {
+    // Test for redirect back to initial protected page
+    expect(history.location.pathname).toBe("/tickets/0");
+
+    // with sign-in page removed from history
+    expect(history.length).toBe(1);
+  });
+})
+
+
+
+test.each([
+  {
+    endpoint: endpoints.signIn,
+    outcome: "failure",
+    responseResolver: signInFailure,
+    buttonNameRegex: /sign in/i,
+  },
+  {
+    endpoint: endpoints.signIn,
+    outcome: "server error",
+    responseResolver: serverError,
+    buttonNameRegex: /sign in/i,
+  },
+  {
+    endpoint: endpoints.signUp,
+    outcome: "failure",
+    responseResolver: signUpFailure,
+    buttonNameRegex: /sign up/i,
+  },
+  {
+    endpoint: endpoints.signUp,
+    outcome: "error",
+    responseResolver: serverError,
+    buttonNameRegex: /sign in/i,
+  },
+])(
+  "$endpoint $outcome followed by successful signin",
+  async ({ endpoint, responseResolver, buttonNameRegex }) => {
+    // reset the handler to respond as though signin failed
+    const errorHandler = rest.post(`${baseUrl}/${endpoint}`, responseResolver);
+    server.resetHandlers(errorHandler);
+
+    const { history } = render(<App />, { routeHistory: ["/tickets/0"] });
+
+    // Sign in (after redirect)
+    const emailField = screen.getByLabelText(/email address/i);
+    userEvent.type(emailField, "test@test.com");
+
+    const passwordField = screen.getByLabelText(/password/i);
+    userEvent.type(passwordField, "test");
+
+    const form = screen.getByTestId("sign-in-form");
+    const signInButton = getByRole(form, "button", { name: buttonNameRegex });
+    userEvent.click(signInButton);
+
+    // reset handlers to default to simulate a correct sign-in
+    server.resetHandlers();
+
+    // no need to re-enter info, just click button
+    userEvent.click(signInButton);
+
+    await waitFor(() => {
+      // Test for redirect back to initial protected page
+      expect(history.location.pathname).toBe("/tickets/0");
+
+      // with sign-in page removed from history
+      expect(history.length).toBe(1);
+    });
+  }
+);

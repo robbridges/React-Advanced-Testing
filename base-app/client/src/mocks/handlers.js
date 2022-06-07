@@ -7,13 +7,8 @@ import { bands, shows } from "../test-utils/fake-data";
 
 const authHandler = (req, res, ctx) => {
   const { email } = req.body;
-  return res(
-    ctx.json({
-      id: 112,
-      email,
-      token: "479sahikjdhi",
-    })
-  );
+  const user = { email, token: "abc", id: 1 };
+  return res(ctx.json({ user }));
 };
 
 export const handlers = [
