@@ -1,4 +1,4 @@
-import { response, rest } from "msw";
+import { rest } from "msw";
 
 import { baseUrl, endpoints } from "../app/axios/constants";
 import { bandUrl } from "../features/band/redux/bandApi";

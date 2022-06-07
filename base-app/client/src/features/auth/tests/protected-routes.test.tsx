@@ -71,13 +71,7 @@ const signUpFailure = (
 ) => { 
   return res(ctx.status(500))
 }
-const signUpServerError = (
-  req: RestRequest<DefaultRequestBody, RequestParams>, 
-  res: ResponseComposition, 
-  ctx: RestContext
-) => { 
-  return res(ctx.status(400))
-}
+
 
 test("unsuccessful signin followed by successful signin", async () => {
   const errorHandler = rest.post(
